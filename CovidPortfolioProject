@@ -1,0 +1,174 @@
+use PortFolioProject;
+
+select * from CovidDeaths where continent is not null
+order by 3 and 4;
+
+select location, date, total_cases,total_deaths,population
+from CovidDeaths order by 1,2;
+
+
+-- total cases vs total deaths
+select location,date,total_cases,total_deaths,(total_deaths/total_cases)*100 as death_percentage
+from CovidDeaths where location like '%states'
+order by 1,2;
+
+
+-- looking at total cases vs population
+
+select location,date, total_cases, population, (total_cases/population)*100 as percentage_of_cases
+from CovidDeaths where location like '%states'
+order by location and date;
+
+
+-- countries with highest infection rate
+
+select location,population,max(total_cases) as highest_infection_count,max((total_cases/population))*100 as percentage_of_infected
+from CovidDeaths
+group by location,population
+order by percentage_of_infected desc;
+
+
+
+-- countries with highest death count per population
+
+select location,max(cast(total_deaths as unsigned)) as TotalDeathCount
+from CovidDeaths where continent is not null
+group by location
+order by TotalDeathCount desc;
+
+
+
+-- breaking things down by continent
+
+select continent,max(cast(total_deaths as unsigned)) as TotalDeathCount
+from CovidDeaths
+group by continent
+order by TotalDeathCount desc;
+
+
+
+-- global numbers
+
+select sum(new_cases) as total_cases,sum((new_deaths)) as total_deaths,(sum(new_deaths)/sum(new_cases))*100 as death_percentage
+-- total_deaths,(total_deaths/total_cases)*100 as Death_percentage
+from CovidDeaths
+where continent is not null
+-- group by Date
+order by 1 and 2;
+
+
+
+-- working with vaccinations and deaths
+
+select dea.continent,dea.location,dea.date,dea.population, vac.new_vaccinations
+from CovidDeaths dea
+join  CovidVaccinations vac
+on dea.location=vac.location and dea.date=vac.date
+order by 1 and 2 and 3;
+
+
+
+-- total population vs vaccinations
+
+SELECT 
+    dea.continent, 
+    dea.location, 
+    dea.date, 
+    dea.population, 
+    vac.new_vaccinations,
+    SUM(COALESCE(vac.new_vaccinations, 0)) 
+        OVER (PARTITION BY dea.location ORDER BY dea.date) AS RollingPeopleVaccinated
+FROM CovidDeaths dea
+JOIN CovidVaccinations vac
+    ON dea.location = vac.location 
+    AND dea.date = vac.date
+WHERE dea.continent IS NOT NULL
+ORDER BY dea.location, dea.date;
+
+
+
+-- using a cte
+
+with PopvsVac( continent,location,date,population,new_vaccinations,RollingPeopleVaccinated)
+as
+(
+SELECT 
+    dea.continent, 
+    dea.location, 
+    dea.date, 
+    dea.population, 
+    vac.new_vaccinations,
+    SUM(COALESCE(vac.new_vaccinations, 0)) 
+        OVER (PARTITION BY dea.location ORDER BY dea.date) AS RollingPeopleVaccinated
+FROM CovidDeaths dea
+JOIN CovidVaccinations vac
+    ON dea.location = vac.location 
+    AND dea.date = vac.date
+WHERE dea.continent IS NOT NULL
+ORDER BY dea.location, dea.date
+)
+
+select *, (RollingPeopleVaccinated/Population)*100
+from PopvsVac;
+
+
+-- using a temp table 
+
+
+create temporary table PercentPeopleVaccinated
+(
+	Continent varchar(255),
+    Location varchar(255),
+    date DATE,
+    Population numeric,
+    new_vaccinations numeric,
+    RollingPeopleVaccinated numeric
+);
+
+drop table if exists PercentPeopleVaccinated;
+
+INSERT INTO PercentPeopleVaccinated
+SELECT 
+    dea.continent, 
+    dea.location, 
+    STR_TO_DATE(dea.date, '%d-%m-%Y') AS date, 
+    dea.population, 
+    NULLIF(vac.new_vaccinations, '') AS new_vaccinations,  -- Convert empty string to NULL
+    SUM(COALESCE(NULLIF(vac.new_vaccinations, ''), 0)) 
+        OVER (PARTITION BY dea.location ORDER BY STR_TO_DATE(dea.date, '%d-%m-%Y')) 
+        AS RollingPeopleVaccinated
+FROM CovidDeaths dea
+JOIN CovidVaccinations vac
+    ON dea.location = vac.location 
+    AND STR_TO_DATE(dea.date, '%d-%m-%Y') = STR_TO_DATE(vac.date, '%d-%m-%Y');  -- Ensure date format matches
+-- WHERE dea.continent IS NOT NULL
+-- ORDER BY dea.location, STR_TO_DATE(dea.date, '%d-%m-%Y');
+
+select *,(RollingPeopleVaccinated/Population)*100
+from PercentPeopleVaccinated;
+
+
+-- creating view to store data for visualisation
+
+create view PercentPopulationVaccinated as 
+SELECT 
+    dea.continent, 
+    dea.location, 
+    STR_TO_DATE(dea.date, '%d-%m-%Y') AS date, 
+    dea.population, 
+    NULLIF(vac.new_vaccinations, '') AS new_vaccinations,  -- Convert empty string to NULL
+    SUM(COALESCE(NULLIF(vac.new_vaccinations, ''), 0)) 
+        OVER (PARTITION BY dea.location ORDER BY STR_TO_DATE(dea.date, '%d-%m-%Y')) 
+        AS RollingPeopleVaccinated
+FROM CovidDeaths dea
+JOIN CovidVaccinations vac
+    ON dea.location = vac.location 
+    AND STR_TO_DATE(dea.date, '%d-%m-%Y') = STR_TO_DATE(vac.date, '%d-%m-%Y');  -- Ensure date format matches
+-- WHERE dea.continent IS NOT NULL
+-- ORDER BY deapercentpopulationvaccinated.location, STR_TO_DATE(dea.date, '%d-%m-%Y');
+
+
+select * from PercentPopulationVaccinated;
+
+
+
