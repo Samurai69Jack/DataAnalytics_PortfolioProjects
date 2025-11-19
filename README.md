@@ -1,3 +1,7 @@
-# DataAnalytics_PortfolioProject
+# SQL Data Cleaning and Insights
 
-The repository contains a no of files consisting of cleaned datasets on which certain operations have been performed in SQL to retrieve meaningful insights that can be utilised for Data visualisation.
+The respository consists of two files:-
+1. Nashville Housing Data
+2. Covid Data
+
+Both the files have be cleaned using SQL queries in order to organise them and make them consistent across all formats, different SQL operations like joins window functions and CTEs have be utilised in order to clean them.
